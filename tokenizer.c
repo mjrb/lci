@@ -319,14 +319,17 @@ Token **tokenizeLexemes(LexemeList *list)
 			token = createToken(TT_BOOLEAN, "WIN", fname, line);
 			token->data.i = 1;
 		}
-		/* CAN HAS STDIO? */
+		/* CAN HAS LIB? */
 		else if (n < list->num - 2
 				&& !strcmp(lexeme->image, "CAN")
-				&& !strcmp(list->lexemes[n + 1]->image, "HAS")
-				&& !strcmp(list->lexemes[n + 2]->image, "STDIO?")) {
-			n += 2;
-			/* Just for fun; not actually in spec */
-			continue;
+				&& !strcmp(list->lexemes[n + 1]->image, "HAS")) {
+			if (!strcmp(list->lexemes[n + 2]->image, "\n")) {
+				n += 1;
+				fprintf(stderr, "%s:%i: unexpected newline, expected library name\n", fname, line);
+				continue;
+			}
+			n += 1;
+			token = createToken(TT_CANHAS, "CAN HAS", fname, line);
 		}
 		/* Newline */
 		/* Note that the spec is unclear as to whether a command *must*

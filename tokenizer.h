@@ -106,6 +106,7 @@ typedef enum {
 	TT_OHAIIM,      /**< Alternate array declaration. */
 	TT_IMLIEK,      /**< Alternate inherited object declaration. */
 	TT_KTHX,        /**< End of alternate array declaration. */
+	TT_CANHAS,      /**< Import keyword. */
 
 	TT_ENDOFTOKENS  /**< Sentinel end of this enum -- don't move it! */
 } TokenType;
@@ -185,6 +186,8 @@ static const char *keywords[] = {
 	"O HAI IM",    /* TT_OHAIIM */
 	"IM LIEK",     /* TT_IMLIEK */
 	"KTHX",        /* TT_KTHX */
+	"CAN HAS",     /* TT_CANHAS */
+
 	""             /* TT_ENDOFTOKENS */
 };
 
