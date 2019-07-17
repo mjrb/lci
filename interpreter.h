@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <math.h>
+#include <dlfcn.h>
 
 #include "parser.h"
 #include "unicode.h"
@@ -47,6 +48,11 @@
 #define getArray(value) (value->data.a)
 
 /**
+ * Retrieves a value's cfunction data.
+ */
+#define getCFunction(value) (value->data.cfn)
+
+/**
  * Represents a value type.
  */
 typedef enum {
@@ -56,7 +62,8 @@ typedef enum {
 	VT_STRING,  /**< A string value. */
 	VT_NIL,     /**< Represents no value. */
 	VT_FUNC,    /**< A function. */
-	VT_ARRAY    /**< An array. */
+	VT_ARRAY,   /**< An array. */
+	VT_CFUNC    /**< c function pointer wrapper. */
 } ValueType;
 
 /**
@@ -68,6 +75,7 @@ typedef union {
 	char *s;               /**< String data. */
 	FuncDefStmtNode *fn;   /**< Function data. */
 	struct scopeobject *a; /**< Array data. */
+	struct cfuncdata *cfn; /**< CFunc data. */
 } ValueData;
 
 /**
@@ -83,7 +91,7 @@ typedef union {
 /**
  * Stores a value.
  */
-typedef struct {
+typedef struct valueobject {
 	ValueType type;           /**< The type of value stored. */
 	ValueData data;           /**< The value data. */
 	unsigned short semaphore; /**< A semaphore for value usage. */
@@ -119,6 +127,39 @@ typedef struct scopeobject {
 } ScopeObject;
 
 /**
+ * Object for tracking when to free a library
+ */
+typedef struct {
+	void *handle;  /**< handle created after dynamic loading */
+	int semaphore; /**< reference count for cfuncs belonging to this library */
+} LOLLibrary;
+
+/**
+ * returned by library when asked for imports
+ */
+typedef struct importlist {
+	ValueObject *object;     /**< object to import */
+	const char *name;        /**< name to bind the import to*/
+	struct importlist *next; /**< next import in the list. */
+	IdentifierNode *id;      /**< keep track for cleanup if somthing goes bad with importing. */
+} ImportList;
+
+
+/**
+ * CFunction body signature
+ */
+typedef ReturnObject *(*CFunction)(ValueObject **, int, ScopeObject *);
+
+/**
+ * Stores data for a cfunc
+ */
+typedef struct cfuncdata {
+	int args;          /**< the number of args to accept -1 for variadic. */
+	CFunction body;    /**< c function pointer. */
+	LOLLibrary *lib;   /**< library handle */
+} CFuncData;
+
+/**
  * \name Utilities
  *
  * Functions for performing helper tasks.
@@ -144,6 +185,7 @@ ValueObject *createFloatValueObject(float);
 ValueObject *createStringValueObject(char *);
 ValueObject *createFunctionValueObject(FuncDefStmtNode *);
 ValueObject *createArrayValueObject(ScopeObject *);
+ValueObject *createCFunctionValueObject(int, CFunction, LOLLibrary *);
 ValueObject *copyValueObject(ValueObject *);
 void deleteValueObject(ValueObject *);
 /**@}*/
@@ -174,6 +216,27 @@ void deleteScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *);
 /**@{*/
 ReturnObject *createReturnObject(ReturnType, ValueObject *);
 void deleteReturnObject(ReturnObject *);
+/**@}*/
+
+/**
+ * \name LOLLibrary modifiers
+ *
+ * Functions for creating and deleting LOLLibrary as well as getting imports.
+ */
+/**@{*/
+LOLLibrary *createLOLLibrary(char *name);
+void deleteLOLLibrary(LOLLibrary *lib);
+ImportList *getLOLLibraryImports(LOLLibrary * lib);
+/**@}*/
+
+/**
+ * \name ImportList modifiers
+ *
+ * Functions for creating and deleting ImportList Nodes.
+ */
+/**@{*/
+ImportList *createImportList(ValueObject *obj, const char *name, ImportList *next);
+void deleteImportList(ImportList *list);
 /**@}*/
 
 /**
@@ -252,6 +315,7 @@ ReturnObject *interpretDeallocationStmtNode(StmtNode *, ScopeObject *);
 ReturnObject *interpretFuncDefStmtNode(StmtNode *, ScopeObject *);
 ReturnObject *interpretExprStmtNode(StmtNode *, ScopeObject *);
 ReturnObject *interpretAltArrayDefStmtNode(StmtNode *, ScopeObject *);
+ReturnObject *interpretImportStmtNode(StmtNode *, ScopeObject *);
 /**@}*/
 
 /**

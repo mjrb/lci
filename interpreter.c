@@ -277,6 +277,107 @@ ValueObject *createArrayValueObject(ScopeObject *parent)
 }
 
 /**
+ * Creates an CFunction-type value.
+ *
+ * \param [in] args how many args to accept. -1 for variadic.
+ *
+ * \param [in] body a pointer to the cfunction this wraps.
+ *
+ * \return A CFunction object with the specified parameters.
+ *
+ * \retval NULL Memory allocation failed.
+ */
+ValueObject *createCFunctionValueObject(int args, CFunction body, LOLLibrary *lib)
+{
+	ValueObject *p = malloc(sizeof(ValueObject));
+	if (!p) {
+		perror("malloc");
+		return NULL;
+	}
+	p->type = VT_CFUNC;
+	p->data.cfn = malloc(sizeof(CFuncData));;
+	if (!p->data.cfn) {
+		free(p);
+		return NULL;
+	}
+	p->data.cfn->args = args;
+	p->data.cfn->body = body;
+	p->data.cfn->lib = lib;
+	V(lib);
+	p->semaphore = 1;
+	return p;
+}
+
+/**
+ * uses dynamic linking to open some library
+ *
+ * \param name the shared object will be called name.dll or name.so
+ */
+LOLLibrary *createLOLLibrary(char *name)
+{
+	LOLLibrary *lib = malloc(sizeof(LOLLibrary));
+	if (!lib) return NULL;
+	// TODO dlopen
+	lib->semaphore = 0;
+	return lib;
+}
+
+/**
+ * unloads the library
+ */
+void deleteLOLLibrary(LOLLibrary *lib)
+{
+	// TODO dlclose
+	free(lib);
+}
+
+ReturnObject *_testfn(ValueObject **args, int argc, ScopeObject *scope)
+{
+	return createReturnObject(RT_RETURN, createIntegerValueObject(12));
+}
+
+/**
+ * uses dynamic linking to get the imported objects from the module
+ */
+ImportList *getLOLLibraryImports(LOLLibrary *lib)
+{
+	// TODO dlsym
+	ValueObject *func = createCFunctionValueObject(0, &_testfn, lib);
+	return createImportList(func, "CFUNC", NULL);
+}
+
+/**
+ * creates an import list item.
+ *
+ * \param name should be a string literal. wont be freed
+ *
+ * \retval NULL if malloc failed
+ */
+ImportList *createImportList(ValueObject *obj, const char *name, ImportList *next)
+{
+	ImportList *item = malloc(sizeof(ImportList));
+	if (!item) return NULL;
+	item->object = obj;
+	item->name = name;
+	item->next = next;
+	item->id = NULL;
+	return item;
+}
+
+/**
+ * frees the list elements but not the ValueObjects or strings contained in the ImportList
+ */
+void deleteImportList(ImportList *list)
+{
+	ImportList *next = NULL;
+	while (list) {
+		next = list->next;
+		free(list);
+		list = next;
+	}
+}
+
+/**
  * Copies a value.
  *
  * Instead of actually performing a copy of memory, this function increments a
@@ -322,6 +423,14 @@ void deleteValueObject(ValueObject *value)
 		/* FuncDefStmtNode structures get freed with the parse tree */
 		else if (value->type == VT_ARRAY)
 			deleteScopeObject(value->data.a);
+		else if (value->type == VT_CFUNC) {
+			CFuncData *cfn = value->data.cfn;
+			P(cfn->lib);
+			if (!cfn->lib->semaphore) {
+			        deleteLOLLibrary(cfn->lib);
+			}
+			free(cfn);
+		}
 		free(value);
 	}
 }
@@ -704,7 +813,8 @@ ScopeObject *getScopeObjectLocalCaller(ScopeObject *src,
 		for (n = 0; n < current->numvals; n++) {
 			if (!strcmp(current->names[n], name)) {
 				if (current->values[n]->type != VT_ARRAY
-						&& current->values[n]->type != VT_FUNC) {
+						&& current->values[n]->type != VT_FUNC
+				                && current->values[n]->type != VT_CFUNC) {
 					error(IN_VARIABLE_NOT_AN_ARRAY, target->fname, target->line, name);
 					goto getScopeObjectLocalCallerAbort;
 				}
@@ -1663,13 +1773,16 @@ ValueObject *interpretFuncCallExprNode(ExprNode *node,
                                        ScopeObject *scope)
 {
 	FuncCallExprNode *expr = (FuncCallExprNode *)node->expr;
-	unsigned int n;
+	unsigned int n = 0;
 	ScopeObject *outer = NULL;
 	ValueObject *def = NULL;
 	ReturnObject *retval = NULL;
 	ValueObject *ret = NULL;
 	ScopeObject *dest = NULL;
 	ScopeObject *target = NULL;
+	int expectedArgs;
+	ValueObject **argList = NULL;
+	ValueObject *val = NULL;
 
 	dest = getScopeObject(scope, scope, expr->scope);
 
@@ -1681,7 +1794,7 @@ ValueObject *interpretFuncCallExprNode(ExprNode *node,
 
 	def = getScopeValue(scope, dest, expr->name);
 
-	if (!def || def->type != VT_FUNC) {
+	if (!def || !(def->type == VT_FUNC || def->type == VT_CFUNC)) {
 		IdentifierNode *id = (IdentifierNode *)(expr->name);
 		char *name = resolveIdentifierName(id, scope);
 		if (name) {
@@ -1691,8 +1804,14 @@ ValueObject *interpretFuncCallExprNode(ExprNode *node,
 		deleteScopeObject(outer);
 		return NULL;
 	}
+
 	/* Check for correct supplied arity */
-	if (getFunction(def)->args->num != expr->args->num) {
+	if (def->type == VT_FUNC) {
+		expectedArgs = getFunction(def)->args->num;
+	} else { /* VT_CFUNC */
+		expectedArgs = getCFunction(def)->args;
+	}
+	if (expectedArgs != expr->args->num) {
 		IdentifierNode *id = (IdentifierNode *)(expr->name);
 		char *name = resolveIdentifierName(id, scope);
 		if (name) {
@@ -1702,31 +1821,55 @@ ValueObject *interpretFuncCallExprNode(ExprNode *node,
 		deleteScopeObject(outer);
 		return NULL;
 	}
-	for (n = 0; n < getFunction(def)->args->num; n++) {
-		ValueObject *val = NULL;
-		if (!createScopeValue(scope, outer, getFunction(def)->args->ids[n])) {
-			deleteScopeObject(outer);
-			return NULL;
+
+	/* collect and evaluate arguments */
+	if (def->type == VT_FUNC) {
+		for (n = 0; n < expectedArgs; n++) {
+			val = NULL;
+			if (!(val = interpretExprNode(expr->args->exprs[n], scope))) {
+				goto abortInterpretFuncCall;
+			}
+			if (!createScopeValue(scope, outer, getFunction(def)->args->ids[n])) {
+				goto abortInterpretFuncCall;
+			}
+
+			if (!updateScopeValue(scope, outer, getFunction(def)->args->ids[n], val)) {
+				goto abortInterpretFuncCall;
+			}
 		}
-		if (!(val = interpretExprNode(expr->args->exprs[n], scope))) {
-			deleteScopeObject(outer);
-			return NULL;
+		/**
+		 * \note We use interpretStmtNodeList here because we want to have
+		 * access to the function's scope as we may need to retrieve the
+		 * implicit variable in the case of a default return.
+		 */
+		if (!(retval = interpretStmtNodeList(getFunction(def)->body->stmts, outer))) {
+			goto abortInterpretFuncCall;
 		}
-		if (!updateScopeValue(scope, outer, getFunction(def)->args->ids[n], val)) {
-			deleteScopeObject(outer);
-			deleteValueObject(val);
-			return NULL;
+	} else { /* VT_CFUNC */
+		if (expectedArgs > 0) {
+			argList = malloc(sizeof(ValueObject *) * expectedArgs);
+			if (!argList) goto abortInterpretFuncCall;
+		}
+		for (n = 0; n < expectedArgs; n++) {
+			ValueObject *val = NULL;
+			if (!(val = interpretExprNode(expr->args->exprs[n], scope))) {
+				goto abortInterpretFuncCall;
+			}
+			argList[n] = val;
+		}
+		if (!(retval = getCFunction(def)->body(argList, expectedArgs, outer))) { // TODO should we pass outer?
+			goto abortInterpretFuncCall;
+		}
+		/* free arg list */
+		if (argList) {
+			while (n > 0) {
+				n--;
+				deleteValueObject(argList[n]);
+			}
+			free(argList);
 		}
 	}
-	/**
-	 * \note We use interpretStmtNodeList here because we want to have
-	 * access to the function's scope as we may need to retrieve the
-	 * implicit variable in the case of a default return.
-	 */
-	if (!(retval = interpretStmtNodeList(getFunction(def)->body->stmts, outer))) {
-		deleteScopeObject(outer);
-		return NULL;
-	}
+
 	switch (retval->type) {
 		case RT_DEFAULT:
 			/* Extract return value */
@@ -1747,7 +1890,21 @@ ValueObject *interpretFuncCallExprNode(ExprNode *node,
 	}
 	deleteReturnObject(retval);
 	deleteScopeObject(outer);
+
 	return ret;
+ abortInterpretFuncCall:
+	/* free evaluated args */
+	if (argList) {
+		while (n > 0) {
+			n--;
+			deleteValueObject(argList[n]);
+		}
+		free(argList);
+	}
+	if (outer) deleteScopeObject(outer);
+	if (val) deleteValueObject(val);
+	return NULL;
+
 }
 
 /**
@@ -3676,11 +3833,72 @@ ReturnObject *interpretAltArrayDefStmtNode(StmtNode *node,
 	return createReturnObject(RT_DEFAULT, NULL);
 }
 
+/**
+ * Interprets an import statement.
+ *
+ * \param [in] node The statement to interpret.
+ *
+ * \param [in] scope The scope to evaluate \a node under.
+ *
+ * \pre \a node contains a statement created by createImportNode().
+ *
+ * \return A pointer to a default return value.
+ *
+ * \retval NULL An error occurred during interpretation.
+ */
+ReturnObject *interpretImportStmtNode(StmtNode *node,
+				      ScopeObject *scope)
+{
+	ImportStmtNode *stmt = (ImportStmtNode *)node->stmt;
+	ValueObject *init = NULL;
+	ScopeObject *dest = scope;
+	ReturnObject *ret = NULL;
+	IdentifierNode *id = (IdentifierNode *)(stmt->import);
+	char *name = resolveIdentifierName(id, scope);
+
+	if (getScopeValueLocal(scope, dest, stmt->import)) {
+		fprintf(stderr, "%s:%u: reimport of lib at: %s\n", id->fname, id->line, name);
+	        goto abortInterpretImportStmtNode;
+	}
+
+	LOLLibrary *lib = createLOLLibrary(name);
+	ImportList *imports = getLOLLibraryImports(lib);
+	ImportList *import = imports;
+	while (import) {
+		import->id = createIdentifierNode(IT_DIRECT, (void*)import->name, NULL, name, 0);
+		if (!createScopeValue(scope, dest, import->id)) {
+			goto abortInterpretImportStmtNode;
+		}
+		if (!updateScopeValue(scope, dest, import->id, import->object)) {
+			goto abortInterpretImportStmtNode;
+		}
+		import = import->next;
+	}
+	if (imports) deleteImportList(imports);
+	if (name) free(name);
+	return createReturnObject(RT_DEFAULT, NULL);
+
+ abortInterpretImportStmtNode:
+	// delete scope values
+	import = imports;
+	while (import) {
+		if (import->id) {
+			deleteScopeValue(scope, dest, import->id);
+		} else {
+			free(import->object);
+		}
+		import = import->next;
+	}
+	if (imports) deleteImportList(imports);
+	if (name) free(name);
+	return NULL;
+}
+
 /*
  * A jump table for statements.  The index of a function in the table is given
  * by its its index in the enumerated StmtType type.
  */
-static ReturnObject *(*StmtJumpTable[14])(StmtNode *, ScopeObject *) = {
+static ReturnObject *(*StmtJumpTable[15])(StmtNode *, ScopeObject *) = {
 	interpretCastStmtNode,
 	interpretPrintStmtNode,
 	interpretInputStmtNode,
@@ -3694,7 +3912,8 @@ static ReturnObject *(*StmtJumpTable[14])(StmtNode *, ScopeObject *) = {
 	interpretDeallocationStmtNode,
 	interpretFuncDefStmtNode,
 	interpretExprStmtNode,
-	interpretAltArrayDefStmtNode };
+	interpretAltArrayDefStmtNode,
+        interpretImportStmtNode };
 
 /**
  * Interprets a statement.
