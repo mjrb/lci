@@ -63,7 +63,8 @@
  * StmtNode ::= CastStmtNode | PrintStmtNode | InputStmtNode |
  * AssignmentStmtNode | DeclarationStmtNode | IfThenElseStmtNode |
  * SwitchStmtNode | BreakStmt | ReturnStmtNode | LoopStmtNode |
- * DeallocationStmtNode | FuncDefStmtNode | ExprStmt | AltArrayDefStmtNode
+ * DeallocationStmtNode | FuncDefStmtNode | ExprStmt | AltArrayDefStmtNode |
+ * ImportStmtNode
  *
  * \par
  * CastStmtNode ::= IdentifierNode \c TT_ISNOWA TypeNode \c TT_NEWLINE
@@ -77,6 +78,9 @@
  *
  * \par
  * AssignmentStmtNode ::= IdentifierNode \c TT_R ExprNode \c TT_NEWLINE
+ *
+ * \par
+ * ImportStmtNode ::= \c TT_CANHAS IdentifierNode \c TT_NEWLINE
  *
  * \par
  * DeclarationStmtNode ::= IdentifierNode \c TT_HASA IdentifierNode
@@ -230,6 +234,7 @@ typedef enum {
 	ST_FUNCDEF,         /**< Function definition statement. */
 	ST_EXPR,            /**< Expression statement. */
 	ST_ALTARRAYDEF,     /**< Function definition statement. */
+	ST_IMPORT,          /**< Import statement */
 } StmtType;
 
 /**
@@ -489,6 +494,13 @@ typedef struct {
 } DeallocationStmtNode;
 
 /**
+ * stores the library to import.
+ */
+typedef struct {
+	IdentifierNode *import;
+} ImportStmtNode;
+
+/**
  * Stores a cast expression.  This expression evaluates an expression and casts
  * its value to a particular type.
  */
@@ -720,6 +732,16 @@ void deleteAltArrayDefStmtNode(AltArrayDefStmtNode *);
 /**@}*/
 
 /**
+ * \name ImportStmtNode modifiers
+ *
+ * Functions for creating and deleting ImportStmtNodes.
+ */
+/**@{*/
+ImportStmtNode *createImportStmtNode(IdentifierNode *);
+void deleteImportStmtNode(ImportStmtNode *);
+/**@}*/
+
+/**
  * \name ExprNode modifiers
  *
  * Functions for creating and deleting single or multiple ExprNodes.
@@ -804,6 +826,7 @@ StmtNode *parseLoopStmtNode(Token ***);
 StmtNode *parseDeallocationStmtNode(Token ***);
 StmtNode *parseFuncDefStmtNode(Token ***);
 StmtNode *parseAltArrayDefStmtNode(Token ***);
+StmtNode *parseImportStmtNode(Token ***);
 /**@}*/
 
 /**

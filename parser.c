@@ -514,6 +514,11 @@ void deleteStmtNode(StmtNode *node)
 			deleteAltArrayDefStmtNode(stmt);
 			break;
 		}
+	        case ST_IMPORT: {
+			ImportStmtNode *stmt = (ImportStmtNode *)node->stmt;
+			deleteImportStmtNode(stmt);
+			break;
+		}
 		default:
 			error(PR_UNKNOWN_STATEMENT_TYPE);
 			break;
@@ -1106,6 +1111,41 @@ void deleteAltArrayDefStmtNode(AltArrayDefStmtNode *node)
 	if (!node) return;
 	deleteIdentifierNode(node->name);
 	deleteBlockNode(node->body);
+	free(node);
+}
+
+/**
+ * Creates an import statement.
+ *
+ * \param [in] import The name of the library to import.
+ *
+ * \return A pointer to an import statement with the desired
+ * properties.
+ *
+ * \retval NULL Memory allocation failed.
+ */
+ImportStmtNode *createImportStmtNode(IdentifierNode *import)
+{
+	ImportStmtNode *p = malloc(sizeof(ImportStmtNode));
+	if (!p) {
+		perror("malloc");
+		return NULL;
+	}
+	p->import = import;
+	return p;
+}
+
+/**
+ * Deletes an import statement.
+ *
+ * \param [in,out] node The import statement to delete.
+ *
+ * \post The memory at \a node and all of its members will be freed.
+ */
+void deleteImportStmtNode(ImportStmtNode *node)
+{
+	if (!node) return;
+	deleteIdentifierNode(node->import);
 	free(node);
 }
 
@@ -3893,6 +3933,74 @@ parseAltArrayDefStmtNodeAbort: /* Exception handling */
 }
 
 /**
+ * Parses tokens into an import statement.
+ *
+ * \param [in] tokenp The position in a token list to start parsing at.
+ *
+ * \post \a import will point to the next unparsed token.
+ *
+ * \return A pointer to an import statement.
+ *
+ * \retval NULL Unable to parse.
+ */
+StmtNode *parseImportStmtNode(Token ***tokenp)
+{
+	IdentifierNode *import = NULL;
+	BlockNode *body = NULL;
+	IdentifierNode *parent = NULL;
+	ImportStmtNode *stmt = NULL;
+	StmtNode *ret = NULL;
+	int status;
+
+	/* Work from a copy of the token stream in case something goes wrong */
+	Token **tokens = *tokenp;
+
+#ifdef DEBUG
+	debug("ST_CANHAS");
+#endif
+
+	/* Parse the can has token */
+	status = acceptToken(&tokens, TT_CANHAS);
+	if (!status) {
+		parser_error_expected_token(TT_CANHAS, tokens);
+		goto parseImportStmtNodeAbort;
+	}
+
+	/* Parse import name */
+	import = parseIdentifierNode(&tokens);
+	if (!import) goto parseImportStmtNodeAbort;
+
+	/* The end-function token should appear on its own line */
+	status = acceptToken(&tokens, TT_NEWLINE);
+	if (!status) {
+		parser_error(PR_EXPECTED_END_OF_STATEMENT, tokens);
+		goto parseImportStmtNodeAbort;
+	}
+
+	/* Create the new ImportStmtNode structure */
+	stmt = createImportStmtNode(import);
+	if (!stmt) goto parseImportStmtNodeAbort;
+
+	/* Create the new StmtNode structure */
+	ret = createStmtNode(ST_IMPORT, stmt);
+	if (!ret) goto parseImportStmtNodeAbort;
+
+	/* Since we're successful, update the token stream */
+	*tokenp = tokens;
+
+	return ret;
+
+parseImportStmtNodeAbort: /* Exception handling */
+
+	/* Clean up any allocated structures */
+	if (ret) deleteStmtNode(ret);
+	else if (stmt) deleteImportStmtNode(stmt);
+	else if (import) deleteIdentifierNode(import);
+
+	return NULL;
+}
+
+/**
  * Parses tokens into a statement.
  *
  * \param [in] tokenp The position in a token list to start parsing at.
@@ -4013,6 +4121,10 @@ StmtNode *parseStmtNode(Token ***tokenp)
 	/* Alternate array definition */
 	else if (peekToken(&tokens, TT_OHAIIM)) {
 		ret = parseAltArrayDefStmtNode(tokenp);
+	}
+	/* Import */
+	else if (peekToken(&tokens, TT_CANHAS)) {
+		ret = parseImportStmtNode(tokenp);
 	}
 	/* Bare expression */
 	else if ((expr = parseExprNode(&tokens))) {
