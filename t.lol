@@ -1,0 +1,6 @@
+HAI 1.2
+    CAN HAS STDIO
+    VISIBLE I IZ CFUNC MKAY
+    VISIBLE "lmao"
+    
+KTHXBYE
