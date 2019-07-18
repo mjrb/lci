@@ -107,6 +107,8 @@ typedef enum {
 	TT_IMLIEK,      /**< Alternate inherited object declaration. */
 	TT_KTHX,        /**< End of alternate array declaration. */
 	TT_CANHAS,      /**< Import keyword. */
+	TT_QUEST,       /**< Question mark. */
+	TT_NOM,         /**< Array element declaration. */
 
 	TT_ENDOFTOKENS  /**< Sentinel end of this enum -- don't move it! */
 } TokenType;
@@ -187,6 +189,8 @@ static const char *keywords[] = {
 	"IM LIEK",     /* TT_IMLIEK */
 	"KTHX",        /* TT_KTHX */
 	"CAN HAS",     /* TT_CANHAS */
+	"?",           /* TT_QUEST */
+	"NOM",         /* TT_NOM */
 
 	""             /* TT_ENDOFTOKENS */
 };
