@@ -3910,7 +3910,7 @@ ReturnObject *interpretArrayItemStmtNode(StmtNode *node,
 	IdentifierNode *LEN = NULL;
 	ValueObject *lenVal = NULL;
 
-	LEN = MOVKEY("LEN");
+	LEN = CPYKEY("LEN");
 	if (!LEN) goto interpretArrayItemStmtNodeAbort;
 
 	/* if LEN doesn't exist, make it exist */
