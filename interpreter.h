@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <math.h>
+#include <bson/bson.h>
 
 #include "parser.h"
 #include "unicode.h"

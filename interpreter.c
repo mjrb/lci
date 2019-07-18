@@ -881,7 +881,7 @@ ScopeObject *getScopeObject(ScopeObject *src,
 	int isI;
 	int isME;
 	ScopeObject *scope;
-	
+
 	/* Look up the identifier name */
 	name = resolveIdentifierName(target, src);
 	if (!name) goto getScopeObjectAbort;
@@ -1134,7 +1134,7 @@ resolveTerminalSlotAbort: /* In case something goes wrong... */
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1155,7 +1155,7 @@ ValueObject *castBooleanImplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1180,7 +1180,7 @@ ValueObject *castIntegerImplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1205,7 +1205,7 @@ ValueObject *castFloatImplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \note \a scope is used to resolve variable interpolation within the string
@@ -1234,7 +1234,7 @@ ValueObject *castStringImplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1285,7 +1285,7 @@ ValueObject *castBooleanExplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1338,7 +1338,7 @@ ValueObject *castIntegerExplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \return A pointer to a value with a copy of the contents of \a node, cast to
@@ -1391,7 +1391,7 @@ ValueObject *castFloatExplicit(ValueObject *node,
  * what is returned.
  *
  * \param [in] node The value to cast.
- * 
+ *
  * \param [in] scope The scope to use for variable interpolation.
  *
  * \note \a scope is used to resolve variable interpolation within the string
@@ -1984,6 +1984,18 @@ ValueObject *interpretNotOpExprNode(OpExprNode *expr,
 	if (cast) deleteValueObject(use);
 	deleteValueObject(val);
 	return createBooleanValueObject(!retval);
+}
+
+bson_t *scope2bson(ScopeObject *scope)
+{
+	bson_t *converted;
+	converted = bson_new ();
+	return NULL;
+}
+
+ScopeObject *bson2scope(bson_t *bson)
+{
+	return NULL;
 }
 
 /**
