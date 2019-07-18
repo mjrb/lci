@@ -66,6 +66,8 @@ static const char *err_msgs[] = {
 	"%s:%u: expected statement at: %s\n",
 	/* PR_UNHANDLED_STRING */
 	"unhandled string detected\n",
+	/* PR_EXPECTED_QUEST */
+	"%s:%u expected question mark at end of line\n",
 
 	/* IN_INVALID_IDENTIFIER_TYPE */
 	"%s:%u invalid identifier type at: %s\n",
