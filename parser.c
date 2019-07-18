@@ -827,7 +827,7 @@ void deleteDeclarationStmtNode(DeclarationStmtNode *node)
  *
  * \retval NULL if memory alloc failed
  */
-ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *expr)
+ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *expr, const char *fname, int line)
 {
 	ArrayItemStmtNode *p = malloc(sizeof(ArrayItemStmtNode));
 	if (!p) {
@@ -835,6 +835,8 @@ ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *expr)
 		return NULL;
 	}
 	p->expr = expr;
+	p->fname = fname;
+	p->line = line;
 	return p;
 }
 
@@ -3044,7 +3046,8 @@ StmtNode *parseArrayItemStmtNode(Token ***tokenp)
 
 	/* Work from a copy of the token stream in case something goes wrong */
 	Token **tokens = *tokenp;
-
+	const char *fname = tokens[0]->fname;
+	int line = tokens[0]->line;
 #ifdef DEBUG
 	debug("ST_ITEM");
 #endif
@@ -3067,7 +3070,7 @@ StmtNode *parseArrayItemStmtNode(Token ***tokenp)
 	}
 
 	/* Create the new ArrayItemStmtNode structure */
-	stmt = createArrayItemStmtNode(expr);
+	stmt = createArrayItemStmtNode(expr, fname, line);
 	if (!stmt) goto parseArrayItemStmtNodeAbort;
 
 	/* Create the new StmtNode structure */

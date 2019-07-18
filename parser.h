@@ -463,7 +463,9 @@ typedef struct {
  * stores the expression in the next array slot in the current scope
  */
 typedef struct {
-	ExprNode *expr;
+	ExprNode *expr;    /**< The expression to insert into the array */
+	const char* fname; /**< The file  this statement belongs to. */
+	int line;          /**< The line this statement was on. */
 } ArrayItemStmtNode;
 
 /**
@@ -700,7 +702,7 @@ void deleteDeclarationStmtNode(DeclarationStmtNode *);
  * Functions for creating and deleteing ArrayItemStmtNodes.
  */
 /**@{*/
-ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *);
+ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *, const char *, int);
 void deleteArrayItemStmtNode(ArrayItemStmtNode *);
 /**@}*/
 
