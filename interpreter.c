@@ -460,6 +460,7 @@ ScopeObject *createScopeObject(ScopeObject *parent)
 		return NULL;
 	}
 	p->numvals = 0;
+	p->arrayLen = 0;
 	p->names = NULL;
 	p->values = NULL;
 	p->parent = parent;
@@ -3834,6 +3835,51 @@ ReturnObject *interpretAltArrayDefStmtNode(StmtNode *node,
 }
 
 /**
+ * Interprets an Array Item statement.
+ *
+ * \param [in] node The statement to interpret.
+ *
+ * \param [in] scope The scope to evaluate \a node under.
+ *
+ * \pre \a node contains a statement created by createArrayItemStmtNode().
+ *
+ * \return A pointer to a default return value.
+ *
+ * \retval NULL An error occurred during interpretation.
+ */
+ReturnObject *interpretArrayItemStmtNode(StmtNode *node,
+					 ScopeObject *scope)
+{
+	ArrayItemStmtNode *stmt = (ArrayItemStmtNode *)node->stmt;
+	ValueObject *init = NULL;
+	ScopeObject *dest = scope;
+	ReturnObject *ret = NULL;
+	init = interpretExprNode(stmt->expr, scope);
+	if (!init) goto interpretArrayItemStmtNodeAbort;
+
+	char *index = NULL;
+	asprintf(&index, "%u", scope->arrayLen);
+	if (!index) goto interpretArrayItemStmtNodeAbort;
+	scope->arrayLen++;
+
+	IdentifierNode *id = MOVKEY(index);
+	if (!id) goto interpretArrayItemStmtNodeAbort;
+
+	if (!createScopeValue(scope, dest, id)) {
+		goto interpretArrayItemStmtNodeAbort;
+	}
+	if (!updateScopeValue(scope, dest, id, init)) {
+		goto interpretArrayItemStmtNodeAbort;
+	}
+	return createReturnObject(RT_DEFAULT, NULL);
+ interpretArrayItemStmtNodeAbort:
+	if (init) deleteValueObject(init);
+	if (id) deleteIdentifierNode(id);
+	else if (index) free(index);
+	return NULL;
+}
+
+/**
  * Interprets an import statement.
  *
  * \param [in] node The statement to interpret.
@@ -3898,7 +3944,7 @@ ReturnObject *interpretImportStmtNode(StmtNode *node,
  * A jump table for statements.  The index of a function in the table is given
  * by its its index in the enumerated StmtType type.
  */
-static ReturnObject *(*StmtJumpTable[15])(StmtNode *, ScopeObject *) = {
+static ReturnObject *(*StmtJumpTable[16])(StmtNode *, ScopeObject *) = {
 	interpretCastStmtNode,
 	interpretPrintStmtNode,
 	interpretInputStmtNode,
@@ -3913,6 +3959,7 @@ static ReturnObject *(*StmtJumpTable[15])(StmtNode *, ScopeObject *) = {
 	interpretFuncDefStmtNode,
 	interpretExprStmtNode,
 	interpretAltArrayDefStmtNode,
+	interpretArrayItemStmtNode,
         interpretImportStmtNode };
 
 /**
