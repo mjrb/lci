@@ -296,6 +296,7 @@ ValueObject *createBlobValueObject(void *data)
 	}
 	p->type = VT_BLOB;
 	p->data.b = data;
+	p->dtor = NULL;
 	p->semaphore = 1;
 	return p;
 }
@@ -346,6 +347,8 @@ void deleteValueObject(ValueObject *value)
 		/* FuncDefStmtNode structures get freed with the parse tree */
 		else if (value->type == VT_ARRAY)
 			deleteScopeObject(value->data.a);
+		else if (value->type == VT_BLOB && value->dtor)
+			value->dtor(getBlob(value));
 		free(value);
 	}
 }
