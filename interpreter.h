@@ -245,6 +245,13 @@ ValueObject *interpretOpExprNode(ExprNode *, ScopeObject *);
 /**@}*/
 
 /**
+ * bson/scope converters
+ */
+
+extern bson_t *scope2bson(ScopeObject *);
+extern ScopeObject *bson2scope(bson_t *);
+
+/**
  * \name Statement interpreters
  *
  * Functions for interpreting statement parse tree nodes.
