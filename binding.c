@@ -1,5 +1,6 @@
 #include "binding.h"
 #include "inet.h"  /* for sockets */
+#include <mongoc/mongoc.h>
 
 char *sanitizeInput(char *input)
 {
@@ -311,7 +312,54 @@ ReturnObject *removeManyWrapper(struct scopeobject *scope)
 ReturnObject *mdbconnectWrapper(struct scopeobject *scope)
 {
 	ValueObject *url = getArg(scope, "url");
-	return NULL;
+	if (url->type != VT_STRING) {
+		fprintf(stderr, "mongodb: url must be string\n");
+		return NULL;
+	}
+	mongoc_client_t *client = mongoc_client_new(getString(url));
+	if (!client) {
+		fprintf(stderr, "mongodb: failed to connect to database\n");
+		return NULL;
+	}
+	ValueObject *ret = createBlobValueObject(client);
+	if (!ret) {
+		fprintf(stderr, "mongodb: failed to create client\n");
+		mongoc_client_destroy(client);
+		return NULL;
+	}
+	ret->dtor = (void (*)(void*))mongoc_client_destroy;
+	return createReturnObject(RT_RETURN, ret);
+}
+
+ReturnObject *getCollectionWrapper(struct scopeobject *scope)
+{
+	ValueObject *clientObject = getArg(scope, "client");
+	if (clientObject->type != VT_BLOB) {
+		fprintf(stderr, "mongodb: client object must be blob object\n");
+		return NULL;
+	}
+	mongoc_client_t *client = (mongoc_client_t *)getBlob(clientObject);
+	ValueObject *db = getArg(scope, "db");
+	ValueObject *collName = getArg(scope, "coll");
+	if (db->type != VT_STRING && collName->type != VT_STRING) {
+		fprintf(stderr, "mongodb: coll and db\n");
+		return NULL;
+	}
+	mongoc_collection_t *coll = mongoc_client_get_collection(client,
+								 getString(db),
+								 getString(collName));
+	if (!coll) {
+		fprintf(stderr, "mongodb: failed to get collection %s.%s\n", getString(db), getString(collName));
+		return NULL;
+	}
+	ValueObject *ret = createBlobValueObject(coll);
+	if (!ret) {
+		fprintf(stderr, "mongodb: failed to get collection\n");
+		mongoc_collection_destroy(coll);
+		return NULL;
+	}
+	ret->dtor = (void (*)(void *))mongoc_collection_destroy;
+	return createReturnObject(RT_RETURN, ret);
 }
 
 void loadLibrary(ScopeObject *scope, IdentifierNode *target)
@@ -407,7 +455,8 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 
 		if (!updateScopeValue(scope, scope, id, val)) goto loadLibraryAbort;
 		deleteIdentifierNode(id);
-	} else if (!strcmp(name, "LIBMONGOC")) {
+	} else if (!strcmp(name, "MANGO")) {
+		mongoc_init();
 		lib = createScopeObject(scope);
 		if (!lib) goto loadLibraryAbort;
 
@@ -420,8 +469,9 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "REMOVEONE", "remove one", &removeOneWrapper);
 		loadBinding(lib, "REMOVEMANY", "remove many", &removeManyWrapper);
 		loadBinding(lib, "CONNEKTIN", "url", &mdbconnectWrapper);
+		loadBinding(lib, "COLEKTIN", "client db coll", &getCollectionWrapper);
 
-		id = createIdentifierNode(IT_DIRECT, (void *)copyString("LIBMONGOC"), NULL, NULL, 0);
+		id = CPYKEY("MANGO");
 		if (!id) goto loadLibraryAbort;
 
 		if (!createScopeValue(scope, scope, id)) goto loadLibraryAbort;
