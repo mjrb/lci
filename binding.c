@@ -268,6 +268,46 @@ ReturnObject *randWrapper(struct scopeobject *scope)
 	return createReturnObject(RT_RETURN, ret);
 }
 
+ReturnObject *insertOneWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *insertManyWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *findOneWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *findManyWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *updateOneWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *updateManyWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *removeOneWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
+ReturnObject *removeManyWrapper(struct scopeobject *scope)
+{
+	return NULL;
+}
+
 void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 {
 	char *name = NULL;
@@ -351,6 +391,30 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "AT", "string position", &stratWrapper);
 
 		id = createIdentifierNode(IT_DIRECT, (void *)copyString("STRING"), NULL, NULL, 0);
+		if (!id) goto loadLibraryAbort;
+
+		if (!createScopeValue(scope, scope, id)) goto loadLibraryAbort;
+
+		val = createArrayValueObject(lib);
+		if (!val) goto loadLibraryAbort;
+		lib = NULL;
+
+		if (!updateScopeValue(scope, scope, id, val)) goto loadLibraryAbort;
+		deleteIdentifierNode(id);
+	} else if (!strcmp(name, "LIBMONGOC")) {
+		lib = createScopeObject(scope);
+		if (!lib) goto loadLibraryAbort;
+
+		loadBinding(lib, "INSERTONE", "insert one", &insertOneWrapper);
+		loadBinding(lib, "INSERTMANY", "insert many", &insertManyWrapper);
+		loadBinding(lib, "FINDONE", "find one", &findOneWrapper);
+		loadBinding(lib, "FINDMANY", "find many", &findManyWrapper);
+		loadBinding(lib, "UPDATEONE", "update one", &updateOneWrapper);
+		loadBinding(lib, "UPDATEMANY", "update many", &updateManyWrapper);
+		loadBinding(lib, "REMOVEONE", "remove one", &removeOneWrapper);
+		loadBinding(lib, "REMOVEMANY", "remove many", &removeManyWrapper);
+
+		id = createIdentifierNode(IT_DIRECT, (void *)copyString("LIBMONGOC"), NULL, NULL, 0);
 		if (!id) goto loadLibraryAbort;
 
 		if (!createScopeValue(scope, scope, id)) goto loadLibraryAbort;
