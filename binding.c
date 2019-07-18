@@ -308,6 +308,12 @@ ReturnObject *removeManyWrapper(struct scopeobject *scope)
 	return NULL;
 }
 
+ReturnObject *mdbconnectWrapper(struct scopeobject *scope)
+{
+	ValueObject *url = getArg(scope, "url");
+	return NULL;
+}
+
 void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 {
 	char *name = NULL;
@@ -413,6 +419,7 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "UPDATEMANY", "update many", &updateManyWrapper);
 		loadBinding(lib, "REMOVEONE", "remove one", &removeOneWrapper);
 		loadBinding(lib, "REMOVEMANY", "remove many", &removeManyWrapper);
+		loadBinding(lib, "CONNEKTIN", "url", &mdbconnectWrapper);
 
 		id = createIdentifierNode(IT_DIRECT, (void *)copyString("LIBMONGOC"), NULL, NULL, 0);
 		if (!id) goto loadLibraryAbort;
