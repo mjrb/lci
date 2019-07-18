@@ -169,6 +169,7 @@ void deleteScopeObject(ScopeObject *);
 ValueObject *createScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *);
 ValueObject *updateScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *, ValueObject *);
 ValueObject *getScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *);
+ValueObject *getScopeValueSilent(ScopeObject *, ScopeObject *, IdentifierNode *);
 ValueObject *getScopeValueLocal(ScopeObject *, ScopeObject *, IdentifierNode *);
 ScopeObject *getScopeObject(ScopeObject *, ScopeObject *, IdentifierNode *);
 ScopeObject *getScopeObjectLocal(ScopeObject *, ScopeObject *, IdentifierNode *);
@@ -265,6 +266,7 @@ ReturnObject *interpretAltArrayDefStmtNode(StmtNode *, ScopeObject *);
 ReturnObject *interpretBindingStmtNode(StmtNode *, ScopeObject *);
 /* Forward declaration of binding.h function (to break circular dependence) */
 void loadLibrary(ScopeObject *, IdentifierNode *);
+ReturnObject *interpretArrayItemStmtNode(StmtNode *, ScopeObject *);
 ReturnObject *interpretImportStmtNode(StmtNode *, ScopeObject *);
 /**@}*/
 
