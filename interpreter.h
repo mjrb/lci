@@ -95,6 +95,7 @@ typedef struct {
 	ValueType type;           /**< The type of value stored. */
 	ValueData data;           /**< The value data. */
 	unsigned short semaphore; /**< A semaphore for value usage. */
+	void (*dtor)(void*)       /**< destructor hook. */
 } ValueObject;
 
 /**
