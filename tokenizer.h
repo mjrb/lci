@@ -109,6 +109,7 @@ typedef enum {
 	TT_IDUZ,        /**< System command. */
 	TT_CANHAS,      /**< Library import declaration. */
 	TT_QUESTION,    /**< End of library import declaration. */
+	TT_NOM,         /**< Array auto insert */
 
 	TT_ENDOFTOKENS  /**< Sentinel end of this enum -- don't move it! */
 } TokenType;
@@ -191,6 +192,7 @@ static const char *keywords[] = {
 	"I DUZ",       /* TT_IDUZ */
 	"CAN HAS",     /* TT_CANHAS */
 	"?",           /* TT_QUESTION */
+	"NOM",         /* TT_NOM */
 	""             /* TT_ENDOFTOKENS */
 };
 
