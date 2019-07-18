@@ -2062,7 +2062,8 @@ bson_t *scope2bson(ScopeObject *scope)
 
 ScopeObject *bson2scope(bson_t *bson)
 {
-	return NULL;
+	ScopeObject *converted;
+	return converted;
 }
 
 /**
