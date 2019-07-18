@@ -123,8 +123,6 @@ typedef struct scopeobject {
 	unsigned int numvals;       /**< The number of values in the scope. */
 	char **names;               /**< The names of the values. */
 	ValueObject **values;       /**< The values in the scope. */
-	unsigned int arrayLen;      /**< Then number of array items. */
-	int isArray;                /**< Bool representing if this object is an array*/
 } ScopeObject;
 
 /**
@@ -170,6 +168,7 @@ void deleteScopeObject(ScopeObject *);
 ValueObject *createScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *);
 ValueObject *updateScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *, ValueObject *);
 ValueObject *getScopeValue(ScopeObject *, ScopeObject *, IdentifierNode *);
+ValueObject *getScopeValueSilent(ScopeObject *, ScopeObject *, IdentifierNode *);
 ValueObject *getScopeValueLocal(ScopeObject *, ScopeObject *, IdentifierNode *);
 ScopeObject *getScopeObject(ScopeObject *, ScopeObject *, IdentifierNode *);
 ScopeObject *getScopeObjectLocal(ScopeObject *, ScopeObject *, IdentifierNode *);

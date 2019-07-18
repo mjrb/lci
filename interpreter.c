@@ -375,7 +375,6 @@ ScopeObject *createScopeObject(ScopeObject *parent)
 		return NULL;
 	}
 	p->numvals = 0;
-	p->arrayLen = 0;
 	p->names = NULL;
 	p->values = NULL;
 	p->parent = parent;
@@ -612,6 +611,52 @@ ValueObject *getScopeValue(ScopeObject *src,
 	IdentifierNode *child = target;
 	char *name = NULL;
 	int status;
+	/* Traverse the target to the terminal child and parent */
+	status = resolveTerminalSlot(src, dest, target, &parent, &child);
+	if (!status) goto getScopeValueAbort;
+
+	/* Look up the identifier name */
+	name = resolveIdentifierName(child, src);
+	if (!name) goto getScopeValueAbort;
+
+        ValueObject *result = getScopeValueSilent(src, dest, target);
+	if (!result) {
+		error(IN_VARIABLE_DOES_NOT_EXIST, target->fname, target->line, name);
+		goto getScopeValueAbort;
+	}
+	return result;
+
+getScopeValueAbort: /* In case something goes wrong... */
+
+	/* Clean up any allocated structures */
+	if (name) free(name);
+
+	return NULL;
+}
+
+/**
+ * Gets a stored value in a scope. if not found it won't print out saying the var
+ * doesn't exist
+ *
+ * \param [in] src The scope to evaluate \a target under.
+ *
+ * \param [in,out] dest The scope to update the value in.
+ *
+ * \param [in] target The name of the value to get.
+ *
+ * \return The value in \a dest, named by evaluating \a target under \a src.
+ *
+ * \retval NULL Either \a target could not be evaluated in \a src or \a target
+ * could not be found in \a dest.
+ */
+ValueObject *getScopeValueSilent(ScopeObject *src,
+				 ScopeObject *dest,
+				 IdentifierNode *target)
+{
+	ScopeObject *parent = dest;
+	IdentifierNode *child = target;
+	char *name = NULL;
+	int status;
 
 	/* Traverse the target to the terminal child and parent */
 	status = resolveTerminalSlot(src, dest, target, &parent, &child);
@@ -635,7 +680,6 @@ ValueObject *getScopeValue(ScopeObject *src,
 
 	{
 		char *name = resolveIdentifierName(child, src);
-		error(IN_VARIABLE_DOES_NOT_EXIST, child->fname, child->line, name);
 		free(name);
 	}
 
@@ -646,6 +690,7 @@ getScopeValueAbort: /* In case something goes wrong... */
 
 	return NULL;
 }
+
 
 /**
  * Gets a scope without accessing any arrays.
@@ -3847,13 +3892,39 @@ ReturnObject *interpretArrayItemStmtNode(StmtNode *node,
 	ValueObject *init = NULL;
 	ScopeObject *dest = scope;
 	ReturnObject *ret = NULL;
+	IdentifierNode *LEN = NULL;
+	ValueObject *lenVal = NULL;
+
+	LEN = MOVKEY("LEN");
+	if (!LEN) goto interpretArrayItemStmtNodeAbort;
+
+	/* if LEN doesn't exist, make it exist */
+	if (!(lenVal = getScopeValueLocal(scope, dest, LEN))) {
+		lenVal = createIntegerValueObject(0);
+		if (!lenVal) goto interpretArrayItemStmtNodeAbort;
+
+		if (!createScopeValue(scope, dest, LEN)) {
+			deleteValueObject(lenVal);
+			goto interpretArrayItemStmtNodeAbort;
+
+		} else if (!updateScopeValue(scope, dest, LEN, lenVal)) {
+			deleteValueObject(lenVal);
+			goto interpretArrayItemStmtNodeAbort;
+		}
+	}
+
+	if  (lenVal->type != VT_INTEGER || getInteger(lenVal) < 0) {
+		error(IN_LEN_SHOULD_BE_UINT, stmt->fname, stmt->line);
+		goto interpretArrayItemStmtNodeAbort;
+	}
+
 	init = interpretExprNode(stmt->expr, scope);
 	if (!init) goto interpretArrayItemStmtNodeAbort;
 
 	char *index = NULL;
-	asprintf(&index, "%u", scope->arrayLen);
+	asprintf(&index, "%lld", getInteger(lenVal));
 	if (!index) goto interpretArrayItemStmtNodeAbort;
-	scope->arrayLen++;
+	lenVal->data.i++;
 
 	IdentifierNode *id = MOVKEY(index);
 	if (!id) goto interpretArrayItemStmtNodeAbort;
@@ -3864,8 +3935,10 @@ ReturnObject *interpretArrayItemStmtNode(StmtNode *node,
 	if (!updateScopeValue(scope, dest, id, init)) {
 		goto interpretArrayItemStmtNodeAbort;
 	}
+	if (LEN) free(LEN);
 	return createReturnObject(RT_DEFAULT, NULL);
  interpretArrayItemStmtNodeAbort:
+	if (LEN) free(LEN);
 	if (init) deleteValueObject(init);
 	if (id) deleteIdentifierNode(id);
 	else if (index) free(index);
@@ -3917,7 +3990,7 @@ ReturnObject *interpretImportStmtNode(StmtNode *node,
  * A jump table for statements.  The index of a function in the table is given
  * by its its index in the enumerated StmtType type.
  */
-static ReturnObject *(*StmtJumpTable[16])(StmtNode *, ScopeObject *) = {
+static ReturnObject *(*StmtJumpTable[17])(StmtNode *, ScopeObject *) = {
 	interpretCastStmtNode,
 	interpretPrintStmtNode,
 	interpretInputStmtNode,
