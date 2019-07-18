@@ -133,7 +133,7 @@ void deleteLexemeList(LexemeList *list)
  * preceded by a colon) or a newline or carriage return character is read,
  * whichever comes first.  This handles the odd (but possible) case of strings
  * such as "::" which print out a single colon.  Also handled are the effects of
- * commas, ellipses, bangs (!), and array accesses ('Z).
+ * commas, ellipses, bangs (!), questionmarks (?), and array accesses ('Z).
  *
  * \param [in] buffer The characters to turn into lexemes.
  *
@@ -171,6 +171,21 @@ LexemeList *scanBuffer(const char *buffer, unsigned int size, const char *fname)
 		/* Bang (!) is its own lexeme */
 		if (*start == '!') {
 			Lexeme *lex = createLexeme("!", fname, line);
+			if (!lex) {
+				deleteLexemeList(list);
+				return NULL;
+			}
+			if (!addLexeme(list, lex)) {
+				deleteLexeme(lex);
+				deleteLexemeList(list);
+				return NULL;
+			}
+			start++;
+			continue;
+		}
+		/* Question mark (?) is its own lexeme */
+		if (*start == '?') {
+			Lexeme *lex = createLexeme("?", fname, line);
 			if (!lex) {
 				deleteLexemeList(list);
 				return NULL;
@@ -305,6 +320,7 @@ LexemeList *scanBuffer(const char *buffer, unsigned int size, const char *fname)
 			while (start[len] && !isspace(start[len])
 					&& *(start + len) != ','
 					&& *(start + len) != '!'
+			                && *(start + len) != '?'
 					&& strncmp(start + len, "'Z", 2)
 					&& strncmp(start + len, "...", 3)
 					&& strncmp(start + len, "\xE2\x80\xA6", 3))
