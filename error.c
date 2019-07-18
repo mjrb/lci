@@ -147,6 +147,8 @@ static const char *err_msgs[] = {
 	"%s:%u: cannot cast value to array at: %s\n",
 	/* IN_UNABLE_TO_EXECUTE_COMMAND */
 	"Unable to execute command\n",
+	/* IN_LEN_SHOULD_BE_UINT */
+	"%s:%u: len of object should be positive integer\n",
 };
 
 static const int err_codes[] = {
@@ -230,6 +232,7 @@ static const int err_codes[] = {
 	538, /* IN_FUNCTION_NAME_USED_BY_VARIABLE */
 	539, /* IN_CANNOT_CAST_VALUE_TO_ARRAY */
 	540, /* IN_UNABLE_TO_EXECUTE_COMMAND */
+	541, /* IN_LEN_SHOULD_BE_UINT */
 };
 
 int error(ErrorType e, ...)
