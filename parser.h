@@ -80,12 +80,15 @@
  * AssignmentStmtNode ::= IdentifierNode \c TT_R ExprNode \c TT_NEWLINE
  *
  * \par
- * ImportStmtNode ::= \c TT_CANHAS IdentifierNode \c TT_NEWLINE
+ * ImportStmtNode ::= \c TT_CANHAS IdentifierNode \c TT_QUEST \c TT_NEWLINE
  *
  * \par
  * DeclarationStmtNode ::= IdentifierNode \c TT_HASA IdentifierNode
  * Initialization ? \c TT_NEWLINE | IdentifierNode \c TT_HASAN
  * IdentifierNode Initialization ? \c TT_NEWLINE
+ *
+ * \par
+ * ArrayItemStmtNode ::= \c TT_NOM ExprNode \c TT_NEWLINE
  *
  * \par
  * Initialization ::= \c TT_ITZ ExprNode | \c TT_ITZA TypeNode | \c TT_ITZLIEKA IdentifierNode
@@ -234,6 +237,7 @@ typedef enum {
 	ST_FUNCDEF,         /**< Function definition statement. */
 	ST_EXPR,            /**< Expression statement. */
 	ST_ALTARRAYDEF,     /**< Function definition statement. */
+	ST_ITEM,            /**< array item declation. */
 	ST_IMPORT,          /**< Import statement */
 } StmtType;
 
@@ -439,6 +443,13 @@ typedef struct {
 } DeclarationStmtNode;
 
 /**
+ * stores the expression in the next array slot in the current scope
+ */
+typedef struct {
+	ExprNode *expr;
+} ArrayItemStmtNode;
+
+/**
  * Stores an if/then/else statement.  This statement checks the value of the
  * \ref impvar "implicit variable" and executes the \c yes block if it can be
  * cast to true.  Else, the \c guards are evaluated and the corresponding code
@@ -578,6 +589,8 @@ void deleteBlockNodeList(BlockNodeList *);
  * \name IdentifierNode modifiers
  *
  * Functions for creating and deleting single or multiple IdentifierNodes.
+ *
+ * MOVKEY takes ownership of the string and CPYKEY copies it. they both make an identifier.
  */
 /**@{*/
 IdentifierNode *createIdentifierNode(IdentifierType, void *, IdentifierNode *, const char *, unsigned int);
@@ -585,7 +598,8 @@ void deleteIdentifierNode(IdentifierNode *);
 IdentifierNodeList *createIdentifierNodeList(void);
 int addIdentifierNode(IdentifierNodeList *, IdentifierNode *);
 void deleteIdentifierNodeList(IdentifierNodeList *);
-
+#define MOVKEY(str) createIdentifierNode(IT_DIRECT, (void*)str, NULL, NULL, 0)
+IdentifierNode *CPYKEY(const char *);
 /**@}*/
 
 /**
@@ -659,6 +673,16 @@ void deleteAssignmentStmtNode(AssignmentStmtNode *);
 /**@{*/
 DeclarationStmtNode *createDeclarationStmtNode(IdentifierNode *, IdentifierNode *, ExprNode *, TypeNode *, IdentifierNode *);
 void deleteDeclarationStmtNode(DeclarationStmtNode *);
+/**@}*/
+
+/**
+ * \name ArrayItemStmtNode modeifiers
+ *
+ * Functions for creating and deleteing ArrayItemStmtNodes.
+ */
+/**@{*/
+ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *);
+void deleteArrayItemStmtNode(ArrayItemStmtNode *);
 /**@}*/
 
 /**
@@ -818,6 +842,7 @@ StmtNode *parsePrintStmtNode(Token ***);
 StmtNode *parseInputStmtNode(Token ***);
 StmtNode *parseAssignmentStmtNode(Token ***);
 StmtNode *parseDeclarationStmtNode(Token ***);
+StmtNode *parseArrayItemStmtNode(Token ***);
 StmtNode *parseIfThenElseStmtNode(Token ***);
 StmtNode *parseSwitchStmtNode(Token ***);
 StmtNode *parseBreakStmtNode(Token ***);
