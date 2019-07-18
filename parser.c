@@ -315,6 +315,18 @@ void deleteIdentifierNode(IdentifierNode *node)
 }
 
 /**
+ * copies a string literal and makes a direct identifier with name
+ */
+IdentifierNode *CPYKEY(const char *name)
+{
+	int len = strlen(name) + 1;
+	char *buf = malloc(sizeof(char) * len);
+	if (!buf) return NULL;
+	strncpy(buf, name, len);
+	return MOVKEY(buf);
+}
+
+/**
  * Creates an identifier list.
  *
  * \return A pointer to an identifier list.
@@ -470,6 +482,11 @@ void deleteStmtNode(StmtNode *node)
 		case ST_DECLARATION: {
 			DeclarationStmtNode *stmt = (DeclarationStmtNode *)node->stmt;
 			deleteDeclarationStmtNode(stmt);
+			break;
+		}
+	        case ST_ITEM: {
+			ArrayItemStmtNode *stmt = (ArrayItemStmtNode *)node->stmt;
+			deleteArrayItemStmtNode(stmt);
 			break;
 		}
 		case ST_IFTHENELSE: {
@@ -800,6 +817,38 @@ void deleteDeclarationStmtNode(DeclarationStmtNode *node)
 	deleteExprNode(node->expr);
 	deleteTypeNode(node->type);
 	deleteIdentifierNode(node->parent);
+	free(node);
+}
+
+/**
+ * creates a ArrayItemStmtNode.
+ *
+ * \param expr the expresion to be inserted
+ *
+ * \retval NULL if memory alloc failed
+ */
+ArrayItemStmtNode *createArrayItemStmtNode(ExprNode *expr)
+{
+	ArrayItemStmtNode *p = malloc(sizeof(ArrayItemStmtNode));
+	if (!p) {
+		perror("malloc");
+		return NULL;
+	}
+	p->expr = expr;
+	return p;
+}
+
+/**
+ * Deletes an array item statement.
+ *
+ * \param [in,out] node The declaration statement to delete.
+ *
+ * \post The memory at \a node and all of its members will be freed.
+ */
+void deleteArrayItemStmtNode(ArrayItemStmtNode *node)
+{
+	if (!node) return;
+	deleteExprNode(node->expr);
 	free(node);
 }
 
@@ -2976,6 +3025,71 @@ parseDeclarationStmtNodeAbort: /* Exception handling */
 }
 
 /**
+ * Parses tokens into a array item statement.
+ *
+ * \param [in] tokenp The position in a token list to start parsing at.
+ *
+ * \post \a tokenp will point to the next unparsed token.
+ *
+ * \return A pointer to a array item statement.
+ *
+ * \retval NULL Unable to parse.
+ */
+StmtNode *parseArrayItemStmtNode(Token ***tokenp)
+{
+	ExprNode *expr = NULL;
+	ArrayItemStmtNode *stmt = NULL;
+	StmtNode *ret = NULL;
+	int status;
+
+	/* Work from a copy of the token stream in case something goes wrong */
+	Token **tokens = *tokenp;
+
+#ifdef DEBUG
+	debug("ST_ITEM");
+#endif
+	/* Remove NOM keyword from the token stream */
+	status = acceptToken(&tokens, TT_NOM);
+	if (!status) {
+		parser_error_expected_token(TT_NOM, tokens);
+		goto parseArrayItemStmtNodeAbort;
+	}
+
+	/* Parse the expression to initialize to */
+	expr = parseExprNode(&tokens);
+	if (!expr) goto parseArrayItemStmtNodeAbort;
+
+	/* Make sure the statement ends with a newline */
+	status = acceptToken(&tokens, TT_NEWLINE);
+	if (!status) {
+		parser_error(PR_EXPECTED_END_OF_STATEMENT, tokens);
+		goto parseArrayItemStmtNodeAbort;
+	}
+
+	/* Create the new ArrayItemStmtNode structure */
+	stmt = createArrayItemStmtNode(expr);
+	if (!stmt) goto parseArrayItemStmtNodeAbort;
+
+	/* Create the new StmtNode structure */
+	ret = createStmtNode(ST_ITEM, stmt);
+	if (!ret) goto parseArrayItemStmtNodeAbort;
+
+	/* Since we're successful, update the token stream */
+	*tokenp = tokens;
+
+	return ret;
+
+parseArrayItemStmtNodeAbort: /* Exception handling */
+
+	/* Clean up any allocated structures */
+	if (ret) deleteStmtNode(ret);
+	else if (stmt) deleteArrayItemStmtNode(stmt);
+	else if (expr) deleteExprNode(expr);
+
+	return NULL;
+}
+
+/**
  * Parses tokens into an if/then/else statement.
  *
  * \param [in] tokenp The position in a token list to start parsing at.
@@ -4269,6 +4383,10 @@ StmtNode *parseStmtNode(Token ***tokenp)
 	/* Alternate array definition */
 	else if (peekToken(&tokens, TT_OHAIIM)) {
 		ret = parseAltArrayDefStmtNode(tokenp);
+	}
+	/* array element */
+	else if (peekToken(&tokens, TT_NOM)) {
+		ret = parseArrayItemStmtNode(tokenp);
 	}
 	/* Library import statement */
 	else if (peekToken(&tokens, TT_CANHAS)) {
