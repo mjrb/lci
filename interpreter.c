@@ -2035,8 +2035,29 @@ ValueObject *interpretNotOpExprNode(OpExprNode *expr,
 bson_t *scope2bson(ScopeObject *scope)
 {
 	bson_t *converted;
+	bson_oid_t oid;
+	unsigned int impvar = 0;
+	char **names;
+	ValueObject **values;
+
+	if (scope->impvar->type != VT_BOOLEAN && scope->impvar->type != VT_INTEGER) {
+		impvar = castBooleanImplicit (scope->impvar, scope);
+	}
+	else {
+		impvar = scope->impvar;
+	}
+
 	converted = bson_new ();
-	return NULL;
+	bson_oid_init (&oid, NULL);
+  BSON_APPEND_OID (converted, "_id", &oid);
+	BSON_APPEND_DOCUMENT(converted, "parent", &scope2bson(scope->parent));
+	BSON_APPEND_DOCUMENT(converted, "caller", &scope2bson(scope->caller));
+	BSON_APPEND_INT64 (converted, "impvar", impvar);
+	BSON_APPEND_INT64 (converted, "numvals", scope->numvals);
+	BSON_APPEND_ARRAY (converted, "names", scope-> names);
+	BSON_APPEND_ARRAY (converted, "values", scope->values);
+
+	return converted;
 }
 
 ScopeObject *bson2scope(bson_t *bson)
