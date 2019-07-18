@@ -10,18 +10,18 @@ MARK_AS_ADVANCED(PERFORM_MEM_TESTS)
 IF(${PERFORM_MEM_TESTS})
   find_program(VALGRIND valgrind)
   IF(NOT VALGRIND)
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
 "
   Error: You've enabled memory testing but we can't find valgrind
-  Try one of the following: 
-  1: Make sure valgrind is in your PATH 
-  2: Install valgrind if you already haven't 
+  Try one of the following:
+  1: Make sure valgrind is in your PATH
+  2: Install valgrind if you already haven't
   3: Disable memory testing
 ")
   ENDIF(NOT VALGRIND)
 ENDIF(${PERFORM_MEM_TESTS})
 
-SET(HDRS 
+SET(HDRS
   interpreter.h
   lexer.h
   parser.h
@@ -45,7 +45,9 @@ SET(SRCS
 )
 
 add_executable(lci ${SRCS} ${HDRS})
-target_link_libraries(lci m ncurses readline)
+find_package (libmongoc-1.0 1.7 REQUIRED)
+target_include_directories(lci PRIVATE ${MONGOC_INCLUDE_DIRS})
+target_link_libraries(lci m ncurses readline ${MONGOC_LIBRARIES})
 add_subdirectory(test)
 install(
   TARGETS lci
@@ -60,6 +62,6 @@ if(DOXYGEN_FOUND)
   COMMENT "Generating API documentation with Doxygen" VERBATIM
   )
 else(DOXYGEN_FOUND)
-  message(WARNING 
+  message(WARNING
     "Couldn't find doxygen. You won't be able to generate documentation now")
 endif(DOXYGEN_FOUND)
