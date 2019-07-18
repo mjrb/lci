@@ -2040,6 +2040,10 @@ bson_t *scope2bson(ScopeObject *scope)
 	char **names;
 	ValueObject **values;
 
+	if (scope == NULL) {
+		return NULL;
+	}
+
 	if (scope->impvar->type != VT_BOOLEAN && scope->impvar->type != VT_INTEGER) {
 		impvar = castBooleanImplicit (scope->impvar, scope);
 	}
