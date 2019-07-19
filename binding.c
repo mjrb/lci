@@ -349,7 +349,30 @@ ReturnObject *findWrapper(struct scopeobject *scope)
 
 ReturnObject *updateOneWrapper(struct scopeobject *scope)
 {
-	return NULL;
+	ValueObject *collObject = getArg(scope, "coll");
+	if (collObject->type != VT_BLOB) {
+		fprintf(stderr, "mongodb: update one coll must be BLOB\n");
+		return NULL;
+	}
+	ValueObject *queryObject = getArg(scope, "query");
+	if (queryObject->type != VT_ARRAY) {
+		fprintf(stderr, "mongodb: update one doc must be object\n");
+		return NULL;
+	}
+	bson_t *query = scope2bson(getArray(queryObject));
+	ValueObject *updateObject = getArg(scope, "update");
+	if (updateObject->type != VT_ARRAY) {
+		fprintf(stderr, "mongodb: update one doc must be object\n");
+		return NULL;
+	}
+	bson_t *update = scope2bson(getArray(updateObject));
+	mongoc_collection_t *coll = (mongoc_collection_t *)getBlob(collObject);
+	bson_error_t error;
+	int result = mongoc_collection_update_one(coll, query, update, NULL, NULL, &error);
+	bson_destroy(query);
+	bson_destroy(update);
+	return createReturnObject(RT_RETURN, createBooleanValueObject(result));
+
 }
 
 ReturnObject *updateManyWrapper(struct scopeobject *scope)
@@ -595,7 +618,7 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "INSERTIN", "coll doc", &insertOneWrapper);
 		loadBinding(lib, "INSERTIN_SUM", "coll docs", &insertManyWrapper);
 		loadBinding(lib, "FINDIN", "coll query", &findWrapper);
-		loadBinding(lib, "UPDATEONE", "update one", &updateOneWrapper);
+		loadBinding(lib, "UPDOOTIN", "coll query update", &updateOneWrapper);
 		loadBinding(lib, "UPDATEMANY", "update many", &updateManyWrapper);
 		loadBinding(lib, "REMOVEONE", "remove one", &removeOneWrapper);
 		loadBinding(lib, "REMOVEMANY", "remove many", &removeManyWrapper);
