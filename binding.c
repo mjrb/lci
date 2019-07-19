@@ -271,7 +271,22 @@ ReturnObject *randWrapper(struct scopeobject *scope)
 
 ReturnObject *insertOneWrapper(struct scopeobject *scope)
 {
-	return NULL;
+	ValueObject *collObject = getArg(scope, "coll");
+	if (collObject->type != VT_BLOB) {
+		fprintf(stderr, "mongodb: insert one coll must be BLOB\n");
+		return NULL;
+	}
+	ValueObject *docObject = getArg(scope, "doc");
+	if (docObject->type != VT_ARRAY) {
+		fprintf(stderr, "mongodb: insert one doc must be object\n");
+		return NULL;
+	}
+	mongoc_collection_t *coll = (mongoc_collection_t *)getBlob(collObject);
+	bson_t *doc = scope2bson(getArray(docObject));
+	bson_error_t error;
+	int result = mongoc_collection_insert_one(coll, doc, NULL, NULL, &error);
+	bson_destroy(doc);
+	return createReturnObject(RT_RETURN, createBooleanValueObject(result));
 }
 
 ReturnObject *insertManyWrapper(struct scopeobject *scope)
@@ -279,14 +294,57 @@ ReturnObject *insertManyWrapper(struct scopeobject *scope)
 	return NULL;
 }
 
-ReturnObject *findOneWrapper(struct scopeobject *scope)
+ReturnObject *findWrapper(struct scopeobject *scope)
 {
-	return NULL;
-}
+	ValueObject *collObject = getArg(scope, "coll");
+	if (collObject->type != VT_BLOB) {
+		fprintf(stderr, "mongodb: find coll must be BLOB\n");
+		return NULL;
+	}
+	ValueObject *queryObject = getArg(scope, "query");
+	if (queryObject->type != VT_ARRAY) {
+		fprintf(stderr, "mongodb: find query must be object\n");
+		return NULL;
+	}
+	mongoc_collection_t *coll = (mongoc_collection_t *)getBlob(collObject);
+	bson_t *query = scope2bson(getArray(queryObject));
+	bson_error_t error;
+	mongoc_cursor_t *cur = mongoc_collection_find_with_opts(coll,
+								query,
+								NULL,
+								NULL);
+	const bson_t *doc = NULL;
+	ScopeObject *result = createScopeObject(NULL);
+	int len = 0;
+	char *name = NULL;
+	IdentifierNode *id = NULL;
+	while (mongoc_cursor_next(cur, &doc)) {
+		asprintf(&name, "%d", len);
+		id = MOVKEY(name);
 
-ReturnObject *findManyWrapper(struct scopeobject *scope)
-{
-	return NULL;
+		if (!createScopeValue(result, result, id)) {
+			fprintf(stderr, "mongodb: find failed to add item to array\n");
+			return NULL;
+		}
+		if (!updateScopeValue(result, result, id, createArrayValueObject(bson2scope(doc)))) {
+			fprintf(stderr, "mongodb: find failed to add item to array\n");
+			return NULL;
+		}
+		
+		if (id) deleteIdentifierNode(id);
+		len++;
+	}
+	id = CPYKEY("LEN");
+	if (!createScopeValue(result, result, id)) {
+		fprintf(stderr, "mongodb: find failed to add item to array\n");
+		return NULL;
+	}
+	if (!updateScopeValue(result, result, id, createIntegerValueObject(len))) {
+		fprintf(stderr, "mongodb: find failed to add item to array\n");
+		return NULL;
+	}
+	if (id) deleteIdentifierNode(id);
+	return createReturnObject(RT_RETURN, createArrayValueObject(result));
 }
 
 ReturnObject *updateOneWrapper(struct scopeobject *scope)
@@ -372,6 +430,68 @@ ReturnObject *pbjson(struct scopeobject *scope)
 	printf("%.*s\n", (int)len, json);
 	bson_free(bson);
 	return createReturnObject(RT_DEFAULT, NULL);
+}
+
+ReturnObject *getField(struct scopeobject *scope)
+{
+	ValueObject *nameO = getArg(scope, "name");
+	if (nameO->type != VT_STRING) {
+		fprintf(stderr, "getField name should be string\n");
+		return NULL;
+	}
+	char *name = getString(nameO);
+	ValueObject *formO = getArg(scope, "form");
+	if (formO->type != VT_STRING) {
+		fprintf(stderr, "getField form should be string\n");
+		return NULL;
+	}
+	char *form = getString(formO);
+	int i = 0;
+	int namei = 0;
+	int namelen = strlen(name);
+	int formlen = strlen(form);
+	int matching = 1;
+	int found = 0;
+	while (i < formlen) {
+		if (matching) {
+			
+			if (form[i] == name[namei]) {
+				namei++;
+			}
+				
+			if (i + 1 < formlen && form[i + 1] == '=') {
+				if (namei == namelen) {
+					i += 2;
+					found = 1;
+					break;
+				} else {
+					matching = 0;
+					namei = 0;
+				}
+			}
+		} else {
+			if (form[i] == '&') {
+				matching = 1;
+				namei = 0;
+			}
+		}
+		i++;
+	}
+	if (!found) return createReturnObject(RT_RETURN, createNilValueObject());
+	int end = i;
+	for (end = 0; end < formlen; end++) {
+		if (form[end] == '&') break;
+	}
+	char *new = malloc(sizeof(char) * (end - i) + 1);
+	for (namei = 0; namei < end - i; namei++) {
+		if (form[namei + i] == '+') {
+			new[namei] = ' ';
+		} else {
+			new[namei] = form[namei + i];
+		}
+	}
+	new[end - i] = '\0';
+	return createReturnObject(RT_RETURN, createStringValueObject(new));
 }
 
 void loadLibrary(ScopeObject *scope, IdentifierNode *target)
@@ -472,10 +592,9 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		lib = createScopeObject(scope);
 		if (!lib) goto loadLibraryAbort;
 
-		loadBinding(lib, "INSERTONE", "insert one", &insertOneWrapper);
-		loadBinding(lib, "INSERTMANY", "insert many", &insertManyWrapper);
-		loadBinding(lib, "FINDONE", "find one", &findOneWrapper);
-		loadBinding(lib, "FINDMANY", "find many", &findManyWrapper);
+		loadBinding(lib, "INSERTIN", "coll doc", &insertOneWrapper);
+		loadBinding(lib, "INSERTIN_SUM", "coll docs", &insertManyWrapper);
+		loadBinding(lib, "FINDIN", "coll query", &findWrapper);
 		loadBinding(lib, "UPDATEONE", "update one", &updateOneWrapper);
 		loadBinding(lib, "UPDATEMANY", "update many", &updateManyWrapper);
 		loadBinding(lib, "REMOVEONE", "remove one", &removeOneWrapper);
@@ -483,6 +602,8 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "CONNEKTIN", "url", &mdbconnectWrapper);
 		loadBinding(lib, "COLEKTIN", "client db coll", &getCollectionWrapper);
 		loadBinding(lib, "PBJSON", "thing", &pbjson);
+		loadBinding(lib, "PARSIN", "name form", &getField);
+		
 		
 
 		id = CPYKEY("MANGO");
