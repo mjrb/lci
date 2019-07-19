@@ -2144,10 +2144,92 @@ bson_t *scope2bson(ScopeObject *scope)
 	return converted;
 }
 
+ValueObject *bson2ValueObject(bson_value_t *value)
+{
+	ValueObject *val = NULL;
+	switch(value->value_type) {
+	case BSON_TYPE_NULL:
+		val = createNilValueObject();
+		break;
+	case BSON_TYPE_INT64:
+		val = createIntegerValueObject(value->value.v_int64);
+		break;
+	case BSON_TYPE_INT32:
+		val = createIntegerValueObject(value->value.v_int32);
+		break;
+	case BSON_TYPE_DOUBLE:
+		val = createFloatValueObject(value->value.v_double);
+		break;
+	case BSON_TYPE_BOOL:
+		val = createBooleanValueObject(value->value.v_bool);
+		break;
+	case BSON_TYPE_UTF8:
+		val = createStringValueObject(value->value.v_utf8.str);
+		break;
+	default:
+		val = createNilValueObject();
+	}
+	return val;
+}
+
+ScopeObject *bsonIter2scope(bson_iter_t *iter, int addLen)
+{
+	ScopeObject *converted = createScopeObject(NULL);
+	bson_iter_t child;
+	ValueObject *val = NULL;
+	ValueObject *sval = NULL;
+	char *name = NULL;
+	IdentifierNode *key = NULL;
+	int len = 0;
+	while (bson_iter_next(iter)) {
+		name = (char *)bson_iter_key(iter);
+		switch (bson_iter_type(iter)) {
+		case BSON_TYPE_ARRAY:
+			bson_iter_recurse(iter, &child);
+			val = createArrayValueObject(bsonIter2scope(&child, 1));
+			break;
+		case BSON_TYPE_DOCUMENT:
+			bson_iter_recurse(iter, &child);
+			val = createArrayValueObject(bsonIter2scope(&child, 0));
+			break;
+		default:
+			val = bson2ValueObject((bson_value_t *)bson_iter_value(iter));
+		}
+		key = CPYKEY(name);
+		if (!createScopeValue(converted, converted, key)) {
+			fprintf(stderr, "bson: duplicate key");
+		}
+		if (!updateScopeValue(converted, converted, key, val)) {
+			fprintf(stderr, "bson2object: failed to insert");
+		}
+		deleteIdentifierNode(key);
+		key = NULL;
+		len++;
+	}
+	if (addLen) {
+		IdentifierNode *LEN = CPYKEY("LEN");
+		ValueObject *lenVal = createIntegerValueObject(len);
+		if (!createScopeValue(converted, converted, LEN)) {
+			fprintf(stderr, "bson: duplicate key LEN");
+		}
+		if (!updateScopeValue(converted, converted, LEN, lenVal)) {
+			fprintf(stderr, "bson2object: failed to insert LEN");
+		}
+
+	}
+	return converted;
+}
+
 ScopeObject *bson2scope(bson_t *bson)
 {
-	ScopeObject *converted;
-	return converted;
+	bson_iter_t iter;
+	if (bson_iter_init(&iter, bson)) {
+		ScopeObject *res = bsonIter2scope(&iter, 0);
+		bson_destroy(bson);
+		return res;
+	}
+	bson_destroy(bson);
+	return NULL;
 }
 
 /**
