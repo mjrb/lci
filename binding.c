@@ -362,6 +362,18 @@ ReturnObject *getCollectionWrapper(struct scopeobject *scope)
 	return createReturnObject(RT_RETURN, ret);
 }
 
+ReturnObject *pbjson(struct scopeobject *scope)
+{
+	ValueObject *thingO = getArg(scope, "thing");
+	ScopeObject *thing = getArray(thingO);
+	bson_t *bson = scope2bson(thing);
+	size_t len = 0;
+	char * json = bson_as_json(bson, &len);
+	printf("%.*s\n", (int)len, json);
+	bson_free(bson);
+	return createReturnObject(RT_DEFAULT, NULL);
+}
+
 void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 {
 	char *name = NULL;
@@ -470,6 +482,8 @@ void loadLibrary(ScopeObject *scope, IdentifierNode *target)
 		loadBinding(lib, "REMOVEMANY", "remove many", &removeManyWrapper);
 		loadBinding(lib, "CONNEKTIN", "url", &mdbconnectWrapper);
 		loadBinding(lib, "COLEKTIN", "client db coll", &getCollectionWrapper);
+		loadBinding(lib, "PBJSON", "thing", &pbjson);
+		
 
 		id = CPYKEY("MANGO");
 		if (!id) goto loadLibraryAbort;

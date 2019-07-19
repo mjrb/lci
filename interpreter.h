@@ -70,7 +70,7 @@ typedef enum {
  * Stores value data.
  */
 typedef union {
-	long long i;                 /**< Integer data. */
+	long long i;            /**< Integer data. */
 	float f;               /**< Decimal data. */
 	char *s;               /**< String data. */
 	FuncDefStmtNode *fn;   /**< Function data. */
@@ -95,7 +95,7 @@ typedef struct {
 	ValueType type;           /**< The type of value stored. */
 	ValueData data;           /**< The value data. */
 	unsigned short semaphore; /**< A semaphore for value usage. */
-	void (*dtor)(void*)       /**< destructor hook. */
+	void (*dtor)(void*);      /**< destructor hook. */
 } ValueObject;
 
 /**

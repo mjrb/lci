@@ -2035,34 +2035,111 @@ ValueObject *interpretNotOpExprNode(OpExprNode *expr,
 	return createBooleanValueObject(!retval);
 }
 
-bson_t *scope2bson(ScopeObject *scope)
+bson_value_t *valueObject2bson(ValueObject *obj)
 {
-	bson_t *converted;
-	bson_oid_t oid;
-	unsigned int impvar = 0;
-	char **names;
-	ValueObject **values;
-
-	if (scope == NULL) {
+	if (!obj) return NULL;
+	bson_value_t *val = malloc(sizeof(bson_value_t));
+	switch (obj->type) {
+	case VT_INTEGER:
+		val->value.v_int64 = getInteger(obj);
+		val->value_type = BSON_TYPE_INT64;
+		break;
+	case VT_FLOAT:
+		val->value.v_double = getFloat(obj);
+		val->value_type = BSON_TYPE_DOUBLE;
+		break;
+	case VT_BOOLEAN:
+		val->value.v_bool = getInteger(obj);
+		val->value_type = BSON_TYPE_BOOL;
+		break;
+	case VT_STRING:
+		// TODO strcpy?
+		val->value.v_utf8.str = getString(obj);
+		val->value.v_utf8.len = strlen(getString(obj));
+		val->value_type = BSON_TYPE_UTF8;
+		break;
+	case VT_NIL:
+		val->value_type = BSON_TYPE_NULL;
+		break;
+	default:
+		if (val) bson_value_destroy(val);
 		return NULL;
 	}
 
-	if (scope->impvar->type != VT_BOOLEAN && scope->impvar->type != VT_INTEGER) {
-		impvar = castBooleanImplicit (scope->impvar, scope);
-	}
-	else {
-		impvar = scope->impvar;
-	}
+	return val;
 
-	converted = bson_new ();
-	bson_oid_init (&oid, NULL);
-  BSON_APPEND_OID (converted, "_id", &oid);
-	BSON_APPEND_DOCUMENT(converted, "parent", &scope2bson(scope->parent));
-	BSON_APPEND_DOCUMENT(converted, "caller", &scope2bson(scope->caller));
-	BSON_APPEND_INT64 (converted, "impvar", impvar);
-	BSON_APPEND_INT64 (converted, "numvals", scope->numvals);
-	BSON_APPEND_ARRAY (converted, "names", scope-> names);
-	BSON_APPEND_ARRAY (converted, "values", scope->values);
+}
+
+bson_t *scope2bson(ScopeObject *scope)
+{
+	bson_t *converted = NULL;
+	ValueObject *lenVal = NULL;
+	IdentifierNode *id = NULL;
+	IdentifierNode *LEN = NULL;
+	ValueObject *val = NULL;
+	char *name = NULL;
+	ScopeObject *sval = NULL;
+	int i = 0;
+	int len = 0;
+	if (!scope) return NULL;
+
+	LEN = CPYKEY("LEN");
+	lenVal = getScopeValueLocal(scope, scope, LEN);
+	converted = bson_new();
+	/* array */
+	if (lenVal) {
+		len = getInteger(lenVal);
+		for (i = 0; i < len; i++) {
+			asprintf(&name, "%d", i);
+			id = MOVKEY(name);
+			val = getScopeValueLocal(scope, scope, id);
+			if (val->type == VT_ARRAY) {
+				sval = getArray(val);
+				val = NULL;
+				val = getScopeValueLocal(sval, sval, LEN);
+
+				if (lenVal) {
+					BSON_APPEND_ARRAY(converted,
+							  name,
+							  scope2bson(sval));
+				} else {
+					BSON_APPEND_DOCUMENT(converted,
+							     name,
+							     scope2bson(sval));
+				}
+			} else {
+				BSON_APPEND_VALUE(converted,
+						  name,
+						  valueObject2bson(val));
+			}
+			if (id) deleteIdentifierNode(id);
+		}
+
+	}
+	/* object */
+	else {
+		len = scope->numvals;
+		for (i = 0; i < len; i++) {
+			if (scope->values[i]->type == VT_ARRAY) {
+				sval = getArray(scope->values[i]);
+				lenVal = NULL;
+				lenVal = getScopeValueLocal(sval, sval, LEN);
+				if (lenVal) {
+					BSON_APPEND_ARRAY(converted,
+							  scope->names[i],
+							  scope2bson(sval));
+				} else {
+					BSON_APPEND_DOCUMENT(converted,
+							     scope->names[i],
+							     scope2bson(sval));
+				}
+			} else {
+				BSON_APPEND_VALUE(converted,
+						  scope->names[i],
+						  valueObject2bson(scope->values[i]));
+			}
+		}
+	}
 
 	return converted;
 }
